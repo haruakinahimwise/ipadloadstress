@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>3D Spiky Ball Stress Tester (iPad Fixed)</title>
+<title>3D Spiky Ball Stress Tester (iPad + Infinite)</title>
 <style>
   html, body {
     margin: 0;
@@ -61,6 +61,8 @@
   <input id="ballCount" type="range" min="50" max="1000" step="50" value="200">
   <button id="spawnBtn">Apply ball count</button>
 
+  <button id="spawnInfiniteBtn">Spawn Infinite Balls (toggle)</button>
+
   <div style="margin-top:10px; text-align:left;">
     <b>Device Specs</b>
     <div id="specs" style="font-size:12px; line-height:1.3;"></div>
@@ -74,7 +76,7 @@ let scene, camera, renderer;
 let spikyGroup;
 let lastTime = performance.now();
 let fpsEl;
-let started = false;
+let infiniteSpawn = false;
 
 document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
 document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
@@ -133,6 +135,11 @@ function init() {
     spawnSpikyBalls(count);
   });
 
+  document.getElementById('spawnInfiniteBtn').addEventListener('click', () => {
+    infiniteSpawn = !infiniteSpawn;
+    if (infiniteSpawn) spawnInfinite();
+  });
+
   initControls();
 }
 
@@ -177,6 +184,50 @@ function spawnSpikyBalls(count) {
     );
     spikyGroup.add(mesh);
   }
+}
+
+function spawnInfinite() {
+  if (!infiniteSpawn) return;
+
+  for (let i = 0; i < 5; i++) {
+    const geo = new THREE.IcosahedronGeometry(4, 1);
+    const pos = geo.attributes.position;
+
+    for (let j = 0; j < pos.count; j++) {
+      const x = pos.getX(j);
+      const y = pos.getY(j);
+      const z = pos.getZ(j);
+      const len = Math.sqrt(x*x + y*y + z*z) || 1;
+      const spike = 1 + Math.random() * 0.8;
+      pos.setXYZ(j, (x/len)*len*spike, (y/len)*len*spike, (z/len)*len*spike);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xff00ff,
+      metalness: 0.6,
+      roughness: 0.3,
+      emissive: 0x220022,
+      emissiveIntensity: 0.7
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(
+      (Math.random() - 0.5) * 200,
+      (Math.random() - 0.5) * 200,
+      (Math.random() - 0.5) * 200
+    );
+    mesh.rotation.set(
+      Math.random() * Math.PI,
+      Math.random() * Math.PI,
+      Math.random() * Math.PI
+    );
+
+    spikyGroup.add(mesh);
+  }
+
+  requestAnimationFrame(spawnInfinite);
 }
 
 let dragging = false;
