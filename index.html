@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>3D Spiky Ball Stress Tester (iPad + Infinite)</title>
+<title>3D Spiky Ball Stress Tester (Nuclear)</title>
 <style>
   html, body {
     margin: 0;
@@ -61,7 +61,7 @@
   <input id="ballCount" type="range" min="50" max="1000" step="50" value="200">
   <button id="spawnBtn">Apply ball count</button>
 
-  <button id="spawnInfiniteBtn">Spawn Infinite Balls (toggle)</button>
+  <button id="spawnInfiniteBtn">Spawn Infinite Balls (NUCLEAR)</button>
 
   <div style="margin-top:10px; text-align:left;">
     <b>Device Specs</b>
@@ -186,11 +186,14 @@ function spawnSpikyBalls(count) {
   }
 }
 
+// NUCLEAR infinite spawn
 function spawnInfinite() {
   if (!infiniteSpawn) return;
 
-  for (let i = 0; i < 5; i++) {
-    const geo = new THREE.IcosahedronGeometry(4, 1);
+  const BALLS_PER_FRAME = 50; // crank to 100/200 if you want instant death
+
+  for (let i = 0; i < BALLS_PER_FRAME; i++) {
+    const geo = new THREE.IcosahedronGeometry(4, 2); // heavier
     const pos = geo.attributes.position;
 
     for (let j = 0; j < pos.count; j++) {
@@ -198,31 +201,36 @@ function spawnInfinite() {
       const y = pos.getY(j);
       const z = pos.getZ(j);
       const len = Math.sqrt(x*x + y*y + z*z) || 1;
-      const spike = 1 + Math.random() * 0.8;
+      const spike = 1 + Math.random() * 1.5;
       pos.setXYZ(j, (x/len)*len*spike, (y/len)*len*spike, (z/len)*len*spike);
     }
     pos.needsUpdate = true;
     geo.computeVertexNormals();
 
     const mat = new THREE.MeshStandardMaterial({
-      color: 0xff00ff,
-      metalness: 0.6,
-      roughness: 0.3,
-      emissive: 0x220022,
-      emissiveIntensity: 0.7
+      color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+      metalness: 0.8,
+      roughness: 0.2,
+      emissive: new THREE.Color(Math.random(), Math.random(), Math.random()),
+      emissiveIntensity: 1.2
     });
 
     const mesh = new THREE.Mesh(geo, mat);
+
     mesh.position.set(
-      (Math.random() - 0.5) * 200,
-      (Math.random() - 0.5) * 200,
-      (Math.random() - 0.5) * 200
+      (Math.random() - 0.5) * 300,
+      (Math.random() - 0.5) * 300,
+      (Math.random() - 0.5) * 300
     );
+
     mesh.rotation.set(
       Math.random() * Math.PI,
       Math.random() * Math.PI,
       Math.random() * Math.PI
     );
+
+    const s = 0.5 + Math.random() * 3;
+    mesh.scale.set(s, s, s);
 
     spikyGroup.add(mesh);
   }
