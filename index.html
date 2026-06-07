@@ -1,16 +1,16 @@
-<!DOCTYPE html>
+]<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>3D Spiky Ball iPad Stress Tester</title>
+<title>3D Spiky Ball Stress Tester (Fixed)</title>
 <style>
   html, body {
     margin: 0;
     padding: 0;
     overflow: hidden;
-    background: radial-gradient(circle at top, #1a1a3a, #000);
+    background: #000;
     color: #fff;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: system-ui, sans-serif;
   }
   #ui {
     position: fixed;
@@ -18,7 +18,7 @@
     left: 10px;
     z-index: 10;
     background: rgba(0,0,0,0.6);
-    padding: 10px 14px;
+    padding: 12px;
     border-radius: 10px;
     backdrop-filter: blur(10px);
     font-size: 14px;
@@ -28,7 +28,7 @@
     width: 100%;
   }
   #fps {
-    font-weight: 700;
+    font-weight: bold;
     margin-top: 4px;
   }
 </style>
@@ -36,39 +36,48 @@
 <body>
 
 <div id="ui">
-  <div>🧨 <b>3D Spiky Ball Stress Tester</b></div>
+  <div><b>3D Spiky Ball Stress Tester</b></div>
   <div id="fps">FPS: 0</div>
-  <div>Ball count: <span id="ballCountLabel">200</span></div>
-  <input id="ballCount" type="range" min="50" max="1200" step="50" value="200">
-  <button id="spawnBtn">Apply ball count</button>
+
   <div style="margin-top:6px;">
-    Controls: drag = look, WASD = move
+    Ball count: <span id="ballCountLabel">200</span>
+  </div>
+  <input id="ballCount" type="range" min="50" max="1000" step="50" value="200">
+  <button id="spawnBtn">Apply ball count</button>
+
+  <div style="margin-top:10px; text-align:left;">
+    <b>Device Specs</b>
+    <div id="specs" style="font-size:12px; line-height:1.3;"></div>
   </div>
 </div>
 
-<!-- Three.js CDN -->
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
 <script>
 /* ===========================
       BASIC THREE SETUP
 =========================== */
 let scene, camera, renderer;
-let spikyMeshTemplate;
 let spikyGroup;
 let lastTime = performance.now();
 let fpsEl = document.getElementById('fps');
 
 init();
 animate();
+getSpecs();
 
 function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
 
-  const aspect = window.innerWidth / window.innerHeight;
-  camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 2000);
-  camera.position.set(0, 0, 80);
+  camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    2000
+  );
+  camera.position.set(0, 0, 120);
+  camera.lookAt(0, 0, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -76,77 +85,64 @@ function init() {
   document.body.appendChild(renderer.domElement);
 
   // Lights
-  const ambient = new THREE.AmbientLight(0x555555);
-  scene.add(ambient);
+  scene.add(new THREE.AmbientLight(0x555555));
 
-  const dir1 = new THREE.DirectionalLight(0xff66ff, 1.2);
-  dir1.position.set(50, 80, 40);
-  scene.add(dir1);
+  const d1 = new THREE.DirectionalLight(0xff66ff, 1.2);
+  d1.position.set(50, 80, 40);
+  scene.add(d1);
 
-  const dir2 = new THREE.DirectionalLight(0x66ccff, 0.9);
-  dir2.position.set(-60, -40, -30);
-  scene.add(dir2);
-
-  // Spiky geometry template
-  const baseGeo = new THREE.IcosahedronGeometry(4, 3); // high detail
-  // Displace vertices to make spikes
-  const pos = baseGeo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const vx = pos.getX(i);
-    const vy = pos.getY(i);
-    const vz = pos.getZ(i);
-    const len = Math.sqrt(vx*vx + vy*vy + vz*vz) || 1;
-    const spike = 1.0 + Math.random() * 0.9; // spike factor
-    pos.setXYZ(i, (vx/len)*len*spike, (vy/len)*len*spike, (vz/len)*len*spike);
-  }
-  pos.needsUpdate = true;
-  baseGeo.computeVertexNormals();
-
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xff00ff,
-    metalness: 0.7,
-    roughness: 0.25,
-    emissive: 0x220022,
-    emissiveIntensity: 0.8
-  });
-
-  spikyMeshTemplate = new THREE.Mesh(baseGeo, mat);
+  const d2 = new THREE.DirectionalLight(0x66ccff, 0.9);
+  d2.position.set(-60, -40, -30);
+  scene.add(d2);
 
   spikyGroup = new THREE.Group();
   scene.add(spikyGroup);
 
-  spawnSpikyBalls(200); // default
+  spawnSpikyBalls(200);
 
-  // Resize
-  window.addEventListener('resize', onWindowResize, false);
+  window.addEventListener('resize', onWindowResize);
 
-  // UI
   document.getElementById('spawnBtn').addEventListener('click', () => {
     const count = parseInt(document.getElementById('ballCount').value, 10);
     document.getElementById('ballCountLabel').innerText = count;
     spawnSpikyBalls(count);
   });
 
-  // Camera controls
   initControls();
 }
 
 /* ===========================
-      SPAWN SPIKY BALLS
+      SPAWN SPIKY BALLS (FIXED)
 =========================== */
-let spikyData = [];
-
 function spawnSpikyBalls(count) {
-  // Clear old
   while (spikyGroup.children.length > 0) {
-    const obj = spikyGroup.children.pop();
-    obj.geometry.dispose();
-    // material shared, don't dispose here
+    spikyGroup.remove(spikyGroup.children[0]);
   }
-  spikyData = [];
+
+  const geo = new THREE.IcosahedronGeometry(4, 1); // iPad-safe
+  const pos = geo.attributes.position;
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const len = Math.sqrt(x*x + y*y + z*z) || 1;
+    const spike = 1 + Math.random() * 0.8;
+    pos.setXYZ(i, (x/len)*len*spike, (y/len)*len*spike, (z/len)*len*spike);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xff00ff,
+    metalness: 0.6,
+    roughness: 0.3,
+    emissive: 0x220022,
+    emissiveIntensity: 0.7
+  });
 
   for (let i = 0; i < count; i++) {
-    const mesh = spikyMeshTemplate.clone();
+    const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(
       (Math.random() - 0.5) * 200,
       (Math.random() - 0.5) * 200,
@@ -157,44 +153,28 @@ function spawnSpikyBalls(count) {
       Math.random() * Math.PI,
       Math.random() * Math.PI
     );
-    const scale = 0.7 + Math.random() * 1.8;
-    mesh.scale.set(scale, scale, scale);
-
     spikyGroup.add(mesh);
-
-    spikyData.push({
-      mesh,
-      rotSpeedX: (Math.random() - 0.5) * 0.03,
-      rotSpeedY: (Math.random() - 0.5) * 0.03,
-      rotSpeedZ: (Math.random() - 0.5) * 0.03,
-      floatPhase: Math.random() * Math.PI * 2,
-      floatAmp: 4 + Math.random() * 6,
-      baseY: mesh.position.y
-    });
   }
 }
 
 /* ===========================
       CAMERA CONTROLS
 =========================== */
-let isDragging = false;
+let dragging = false;
 let prevX = 0, prevY = 0;
 let yaw = 0, pitch = 0;
-let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-let moveSpeed = 0.6;
 
 function initControls() {
-  // Pointer drag
-  renderer.domElement.addEventListener('pointerdown', (e) => {
-    isDragging = true;
+  renderer.domElement.addEventListener('pointerdown', e => {
+    dragging = true;
     prevX = e.clientX;
     prevY = e.clientY;
   });
-  window.addEventListener('pointerup', () => {
-    isDragging = false;
-  });
-  window.addEventListener('pointermove', (e) => {
-    if (!isDragging) return;
+
+  window.addEventListener('pointerup', () => dragging = false);
+
+  window.addEventListener('pointermove', e => {
+    if (!dragging) return;
     const dx = e.clientX - prevX;
     const dy = e.clientY - prevY;
     prevX = e.clientX;
@@ -202,38 +182,16 @@ function initControls() {
 
     yaw -= dx * 0.003;
     pitch -= dy * 0.003;
-    pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
-  });
-
-  // Keyboard
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyW') moveForward = true;
-    if (e.code === 'KeyS') moveBackward = true;
-    if (e.code === 'KeyA') moveLeft = true;
-    if (e.code === 'KeyD') moveRight = true;
-  });
-  window.addEventListener('keyup', (e) => {
-    if (e.code === 'KeyW') moveForward = false;
-    if (e.code === 'KeyS') moveBackward = false;
-    if (e.code === 'KeyA') moveLeft = false;
-    if (e.code === 'KeyD') moveRight = false;
+    pitch = Math.max(-1.3, Math.min(1.3, pitch));
   });
 }
 
-function updateCamera(dt) {
-  // Build direction vectors from yaw/pitch
+function updateCamera() {
   const forward = new THREE.Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
     Math.cos(yaw) * Math.cos(pitch)
   );
-  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
-
-  if (moveForward) camera.position.addScaledVector(forward, moveSpeed * dt);
-  if (moveBackward) camera.position.addScaledVector(forward, -moveSpeed * dt);
-  if (moveLeft) camera.position.addScaledVector(right, -moveSpeed * dt);
-  if (moveRight) camera.position.addScaledVector(right, moveSpeed * dt);
-
   const target = new THREE.Vector3().addVectors(camera.position, forward);
   camera.lookAt(target);
 }
@@ -245,36 +203,18 @@ function animate() {
   requestAnimationFrame(animate);
 
   const now = performance.now();
-  const dt = (now - lastTime) / 16.67; // ~frames
   const fps = Math.round(1000 / (now - lastTime));
   lastTime = now;
-  fpsEl.textContent = 'FPS: ' + fps;
+  fpsEl.textContent = "FPS: " + fps;
 
-  // Update spiky balls
-  const t = now * 0.001;
-  for (let i = 0; i < spikyData.length; i++) {
-    const d = spikyData[i];
-    d.mesh.rotation.x += d.rotSpeedX * dt;
-    d.mesh.rotation.y += d.rotSpeedY * dt;
-    d.mesh.rotation.z += d.rotSpeedZ * dt;
+  spikyGroup.rotation.y += 0.002;
+  spikyGroup.rotation.x += 0.001;
 
-    d.mesh.position.y = d.baseY + Math.sin(t * 2 + d.floatPhase) * d.floatAmp;
-  }
-
-  updateCamera(dt);
-
+  updateCamera();
   renderer.render(scene, camera);
 }
 
 /* ===========================
-      RESIZE
+      DEVICE SPECS
 =========================== */
-function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-}
-</script>
-
-</body>
-</html>
+function
