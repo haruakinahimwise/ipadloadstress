@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>3D Spiky Ball Stress Tester (Nuclear + Zoom)</title>
+<title>3D Spiky Ball Stress Tester (Hantavirus Mode)</title>
 <style>
   html, body {
     margin: 0;
@@ -61,7 +61,7 @@
   <input id="ballCount" type="range" min="50" max="1000" step="50" value="200">
   <button id="spawnBtn">Apply ball count</button>
 
-  <button id="spawnInfiniteBtn">Spawn Infinite Balls (NUCLEAR)</button>
+  <button id="spawnInfiniteBtn">Spawn Infinite Balls (HANTAVIRUS)</button>
 
   <div style="margin-top:10px; text-align:left;">
     <b>Device Specs</b>
@@ -104,7 +104,7 @@ function init() {
     60,
     window.innerWidth / window.innerHeight,
     0.1,
-    2000
+    4000
   );
   camera.position.set(0, 0, 120);
 
@@ -192,14 +192,16 @@ function spawnSpikyBalls(count) {
   }
 }
 
-// NUCLEAR infinite spawn
+// HANTAVIRUS infinite spawn
 function spawnInfinite() {
   if (!infiniteSpawn) return;
 
-  const BALLS_PER_FRAME = 50;
+  const now = performance.now();
+  const fps = Math.max(1, Math.min(60, Math.round(1000 / (now - lastTime))));
+  const BALLS_PER_FRAME = Math.floor(200 + (60 - fps) * 10);
 
   for (let i = 0; i < BALLS_PER_FRAME; i++) {
-    const geo = new THREE.IcosahedronGeometry(4, 2);
+    const geo = new THREE.IcosahedronGeometry(4, 3);
     const pos = geo.attributes.position;
 
     for (let j = 0; j < pos.count; j++) {
@@ -207,7 +209,7 @@ function spawnInfinite() {
       const y = pos.getY(j);
       const z = pos.getZ(j);
       const len = Math.sqrt(x*x + y*y + z*z) || 1;
-      const spike = 1 + Math.random() * 1.5;
+      const spike = 1 + Math.random() * 2.5;
       pos.setXYZ(j, (x/len)*len*spike, (y/len)*len*spike, (z/len)*len*spike);
     }
     pos.needsUpdate = true;
@@ -215,18 +217,18 @@ function spawnInfinite() {
 
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(Math.random(), Math.random(), Math.random()),
-      metalness: 0.8,
-      roughness: 0.2,
+      metalness: 0.9,
+      roughness: 0.15,
       emissive: new THREE.Color(Math.random(), Math.random(), Math.random()),
-      emissiveIntensity: 1.2
+      emissiveIntensity: 2 + Math.random() * 2
     });
 
     const mesh = new THREE.Mesh(geo, mat);
 
     mesh.position.set(
-      (Math.random() - 0.5) * 300,
-      (Math.random() - 0.5) * 300,
-      (Math.random() - 0.5) * 300
+      (Math.random() - 0.5) * 500,
+      (Math.random() - 0.5) * 500,
+      (Math.random() - 0.5) * 500
     );
 
     mesh.rotation.set(
@@ -235,11 +237,14 @@ function spawnInfinite() {
       Math.random() * Math.PI
     );
 
-    const s = 0.5 + Math.random() * 3;
+    const s = 0.2 + Math.random() * 6;
     mesh.scale.set(s, s, s);
 
     spikyGroup.add(mesh);
   }
+
+  camera.position.x += (Math.random() - 0.5) * 0.5;
+  camera.position.y += (Math.random() - 0.5) * 0.5;
 
   requestAnimationFrame(spawnInfinite);
 }
@@ -270,7 +275,6 @@ function initControls() {
   });
 }
 
-// ZOOM CONTROLS
 function initZoomControls() {
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyE") zoomIn = true;
