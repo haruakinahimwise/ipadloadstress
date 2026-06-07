@@ -1,8 +1,8 @@
-]<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>3D Spiky Ball Stress Tester (Fixed)</title>
+<title>3D Spiky Ball Stress Tester (iPad Fixed)</title>
 <style>
   html, body {
     margin: 0;
@@ -31,11 +31,27 @@
     font-weight: bold;
     margin-top: 4px;
   }
+  #tapToStart {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    z-index: 999;
+  }
 </style>
 </head>
 <body>
 
-<div id="ui">
+<div id="tapToStart">Tap to Start</div>
+
+<div id="ui" style="display:none;">
   <div><b>3D Spiky Ball Stress Tester</b></div>
   <div id="fps">FPS: 0</div>
 
@@ -51,22 +67,29 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-/* ===========================
-      BASIC THREE SETUP
-=========================== */
 let scene, camera, renderer;
 let spikyGroup;
 let lastTime = performance.now();
-let fpsEl = document.getElementById('fps');
+let fpsEl;
+let started = false;
 
-init();
-animate();
-getSpecs();
+document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
+document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
+
+function startApp() {
+  document.getElementById("tapToStart").style.display = "none";
+  document.getElementById("ui").style.display = "block";
+  init();
+  animate();
+  getSpecs();
+}
 
 function init() {
+  fpsEl = document.getElementById('fps');
+
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
 
@@ -77,14 +100,16 @@ function init() {
     2000
   );
   camera.position.set(0, 0, 120);
-  camera.lookAt(0, 0, 0);
 
-  renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer = new THREE.WebGLRenderer({
+    antialias: false,
+    powerPreference: "high-performance",
+    preserveDrawingBuffer: false
+  });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.body.appendChild(renderer.domElement);
 
-  // Lights
   scene.add(new THREE.AmbientLight(0x555555));
 
   const d1 = new THREE.DirectionalLight(0xff66ff, 1.2);
@@ -111,15 +136,12 @@ function init() {
   initControls();
 }
 
-/* ===========================
-      SPAWN SPIKY BALLS (FIXED)
-=========================== */
 function spawnSpikyBalls(count) {
   while (spikyGroup.children.length > 0) {
     spikyGroup.remove(spikyGroup.children[0]);
   }
 
-  const geo = new THREE.IcosahedronGeometry(4, 1); // iPad-safe
+  const geo = new THREE.IcosahedronGeometry(4, 1);
   const pos = geo.attributes.position;
 
   for (let i = 0; i < pos.count; i++) {
@@ -157,9 +179,6 @@ function spawnSpikyBalls(count) {
   }
 }
 
-/* ===========================
-      CAMERA CONTROLS
-=========================== */
 let dragging = false;
 let prevX = 0, prevY = 0;
 let yaw = 0, pitch = 0;
@@ -196,9 +215,6 @@ function updateCamera() {
   camera.lookAt(target);
 }
 
-/* ===========================
-      ANIMATION LOOP
-=========================== */
 function animate() {
   requestAnimationFrame(animate);
 
@@ -214,7 +230,31 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-/* ===========================
-      DEVICE SPECS
-=========================== */
-function
+function getSpecs() {
+  const gl = document.createElement("canvas").getContext("webgl");
+  const debug = gl.getExtension("WEBGL_debug_renderer_info");
+
+  const specs = {
+    browser: navigator.userAgent,
+    cpuThreads: navigator.hardwareConcurrency || "Unknown",
+    deviceMemory: navigator.deviceMemory ? navigator.deviceMemory + " GB" : "Unknown",
+    screen: `${window.screen.width} x ${window.screen.height}`,
+    gpu: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "Unknown GPU",
+    vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : "Unknown Vendor",
+    maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE)
+  };
+
+  let html = "";
+  for (const k in specs) html += `<b>${k}:</b> ${specs[k]}<br>`;
+  document.getElementById("specs").innerHTML = html;
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+
+</body>
+</html>
