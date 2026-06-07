@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>3D Spiky Ball Stress Tester (Nuclear)</title>
+<title>3D Spiky Ball Stress Tester (Nuclear + Zoom)</title>
 <style>
   html, body {
     margin: 0;
@@ -78,6 +78,11 @@ let lastTime = performance.now();
 let fpsEl;
 let infiniteSpawn = false;
 
+// ZOOM VARIABLES
+let zoomIn = false;
+let zoomOut = false;
+let zoomSpeed = 2;
+
 document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
 document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
 
@@ -141,6 +146,7 @@ function init() {
   });
 
   initControls();
+  initZoomControls();
 }
 
 function spawnSpikyBalls(count) {
@@ -190,10 +196,10 @@ function spawnSpikyBalls(count) {
 function spawnInfinite() {
   if (!infiniteSpawn) return;
 
-  const BALLS_PER_FRAME = 50; // crank to 100/200 if you want instant death
+  const BALLS_PER_FRAME = 50;
 
   for (let i = 0; i < BALLS_PER_FRAME; i++) {
-    const geo = new THREE.IcosahedronGeometry(4, 2); // heavier
+    const geo = new THREE.IcosahedronGeometry(4, 2);
     const pos = geo.attributes.position;
 
     for (let j = 0; j < pos.count; j++) {
@@ -264,12 +270,29 @@ function initControls() {
   });
 }
 
+// ZOOM CONTROLS
+function initZoomControls() {
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "KeyE") zoomIn = true;
+    if (e.code === "KeyQ") zoomOut = true;
+  });
+
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "KeyE") zoomIn = false;
+    if (e.code === "KeyQ") zoomOut = false;
+  });
+}
+
 function updateCamera() {
   const forward = new THREE.Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
     Math.cos(yaw) * Math.cos(pitch)
   );
+
+  if (zoomIn) camera.position.addScaledVector(forward, zoomSpeed);
+  if (zoomOut) camera.position.addScaledVector(forward, -zoomSpeed);
+
   const target = new THREE.Vector3().addVectors(camera.position, forward);
   camera.lookAt(target);
 }
