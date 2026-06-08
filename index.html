@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>3D Stress Tester (Hard‑Lock Edition)</title>
+<title>Spiky Chaos Engine</title>
 <style>
   html, body {
     margin: 0;
@@ -13,9 +13,9 @@
     font-family: system-ui, sans-serif;
   }
 
-  /* CANVAS NEVER BLOCKS TAPS BEFORE START */
+  /* Canvas disabled BEFORE start */
   canvas {
-    pointer-events: none !important;
+    pointer-events: none;
     position: fixed;
     inset: 0;
     z-index: 1;
@@ -30,8 +30,8 @@
     align-items: center;
     justify-content: center;
     font-size: 32px;
-    z-index: 999999999 !important;
-    pointer-events: auto !important;
+    z-index: 999999;
+    pointer-events: auto;
   }
 
   #ui {
@@ -70,17 +70,13 @@
 <div id="uiToggle">☰</div>
 
 <div id="ui">
-  <b>3D Stress Tester</b><br><br>
+  <b>Spiky Chaos Engine</b><br><br>
 
   <div id="fps">FPS: 0</div><br>
 
-  Ball Count: <span id="ballCountLabel">200</span><br>
-  <input id="ballCount" type="range" min="50" max="1000" step="50" value="200"><br>
-  <button id="spawnBtn">Apply</button><br><br>
-
-  <button id="spawnInfiniteBtn">HANTAV1</button>
-  <button id="spawnHantaV2Btn" style="background:#ff2222;">HANTAV2 Progressive</button>
-  <button id="spawnHantaV3Btn" style="background:#aa00ff;">HANTAV3 Progressive</button>
+  <button id="spawnV1">HANTAV1</button>
+  <button id="spawnV2" style="background:#ff2222;">HANTAV2 Progressive</button>
+  <button id="spawnV3" style="background:#aa00ff;">HANTAV3 Progressive</button>
 </div>
 
 <script>
@@ -106,11 +102,6 @@ function startApp() {
 
   document.getElementById("tapToStart").style.display = "none";
 
-  // Re-enable pointer events for everything AFTER start
-  document.querySelectorAll("*").forEach(el => {
-    el.style.pointerEvents = "auto";
-  });
-
   // Load THREE.js AFTER tap
   const script = document.createElement("script");
   script.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
@@ -128,14 +119,17 @@ let scene, camera, renderer;
 let spikyGroup;
 let lastTime = performance.now();
 let fpsEl;
-let infiniteSpawn = false;
+
+let dragging = false;
+let prevX = 0, prevY = 0;
+let yaw = 0, pitch = 0;
 
 let zoomIn = false;
 let zoomOut = false;
 let zoomSpeed = 2;
 
-let hantaV2Level = 1;
-let hantaV3Level = 1;
+let v2Level = 1;
+let v3Level = 1;
 
 /* ---------------------------------------------------
    INIT
@@ -150,12 +144,13 @@ function init() {
 
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 4000);
-  camera.position.set(0, 0, 120);
+  camera.position.set(0, 0, 140);
 
   renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(innerWidth, innerHeight);
   document.body.appendChild(renderer.domElement);
 
+  // Canvas now accepts touches
   renderer.domElement.style.pointerEvents = "auto";
 
   scene.add(new THREE.AmbientLight(0x555555));
@@ -171,165 +166,116 @@ function init() {
   spikyGroup = new THREE.Group();
   scene.add(spikyGroup);
 
-  spawnSpikyBalls(200);
-
-  window.addEventListener("resize", onResize);
-
-  document.getElementById("spawnBtn").onclick = () => {
-    if (block()) return;
-    const count = parseInt(document.getElementById("ballCount").value);
-    document.getElementById("ballCountLabel").innerText = count;
-    spawnSpikyBalls(count);
-  };
-
-  document.getElementById("spawnInfiniteBtn").onclick = () => {
-    if (block()) return;
-    infiniteSpawn = !infiniteSpawn;
-    if (infiniteSpawn) spawnInfinite();
-  };
-
-  document.getElementById("spawnHantaV2Btn").onclick = () => {
-    if (block()) return;
-    hantaV2Level = 1;
-    spawnHantaV2();
-  };
-
-  document.getElementById("spawnHantaV3Btn").onclick = () => {
-    if (block()) return;
-    hantaV3Level = 1;
-    spawnHantaV3();
-  };
-
   initControls();
   initZoomControls();
+
+  document.getElementById("spawnV1").onclick = () => spawnV1();
+  document.getElementById("spawnV2").onclick = () => { v2Level = 1; spawnV2(); };
+  document.getElementById("spawnV3").onclick = () => { v3Level = 1; spawnV3(); };
+
+  window.addEventListener("resize", onResize);
 }
 
 /* ---------------------------------------------------
-   NORMAL BALL SPAWN
+   SPIKY SHAPE GENERATOR
 --------------------------------------------------- */
-function spawnSpikyBalls(count) {
-  if (block()) return;
-
-  while (spikyGroup.children.length) spikyGroup.remove(spikyGroup.children[0]);
-
-  const geo = new THREE.IcosahedronGeometry(4, 1);
+function makeSpikyGeo() {
+  const geo = new THREE.IcosahedronGeometry(4, 3);
   const pos = geo.attributes.position;
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const len = Math.sqrt(x*x + y*y + z*z) || 1;
-    const spike = 1 + Math.random() * 0.8;
+    const spike = 1 + Math.random() * 4.5;
     pos.setXYZ(i, (x/len)*len*spike, (y/len)*len*spike, (z/len)*len*spike);
   }
+
   pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
 
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xff00ff,
-    metalness: 0.6,
-    roughness: 0.3
+function makeFlashMat() {
+  return new THREE.MeshStandardMaterial({
+    color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+    metalness: 1.0,
+    roughness: 0.1,
+    emissive: new THREE.Color(Math.random(), Math.random(), Math.random()),
+    emissiveIntensity: 3 + Math.random() * 4
   });
-
-  for (let i = 0; i < count; i++) {
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(
-      (Math.random() - 0.5) * 200,
-      (Math.random() - 0.5) * 200,
-      (Math.random() - 0.5) * 200
-    );
-    spikyGroup.add(mesh);
-  }
 }
 
 /* ---------------------------------------------------
-   HANTAV1
+   CHAOS MODES
 --------------------------------------------------- */
-function spawnInfinite() {
-  if (block() || !infiniteSpawn) return;
-
-  const now = performance.now();
-  const fps = Math.max(1, Math.min(60, Math.round(1000 / (now - lastTime))));
-  const count = Math.floor(200 + (60 - fps) * 10);
-
-  for (let i = 0; i < count; i++) {
-    const geo = new THREE.IcosahedronGeometry(4, 3);
-    const mat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(Math.random(), Math.random(), Math.random())
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(
-      (Math.random() - 0.5) * 500,
-      (Math.random() - 0.5) * 500,
-      (Math.random() - 0.5) * 500
-    );
-    spikyGroup.add(mesh);
-  }
-
-  requestAnimationFrame(spawnInfinite);
-}
-
-/* ---------------------------------------------------
-   HANTAV2 (Progressive)
---------------------------------------------------- */
-function spawnHantaV2() {
+function spawnV1() {
   if (block()) return;
 
-  hantaV2Level += 0.5;
-  const count = Math.floor(2000 * hantaV2Level);
+  const geo = makeSpikyGeo();
+  const mat = makeFlashMat();
+  const mesh = new THREE.Mesh(geo, mat);
 
-  const geo = new THREE.IcosahedronGeometry(4, 2);
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+  mesh.position.set(
+    (Math.random() - 0.5) * 600,
+    (Math.random() - 0.5) * 600,
+    (Math.random() - 0.5) * 600
+  );
 
-  const inst = new THREE.InstancedMesh(geo, mat, count);
-  const dummy = new THREE.Object3D();
+  mesh.rotation.set(
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    Math.random() * Math.PI
+  );
 
-  for (let i = 0; i < count; i++) {
-    dummy.position.set(
-      (Math.random() - 0.5) * (500 + hantaV2Level * 50),
-      (Math.random() - 0.5) * (500 + hantaV2Level * 50),
-      (Math.random() - 0.5) * (500 + hantaV2Level * 50)
-    );
-    dummy.updateMatrix();
-    inst.setMatrixAt(i, dummy.matrix);
-  }
+  const s = 1 + Math.random() * 6;
+  mesh.scale.set(s, s, s);
 
-  spikyGroup.add(inst);
+  spikyGroup.add(mesh);
 
-  setTimeout(spawnHantaV2, 200);
+  requestAnimationFrame(spawnV1);
 }
 
-/* ---------------------------------------------------
-   HANTAV3 (Progressive Heavy)
---------------------------------------------------- */
-function spawnHantaV3() {
+function spawnV2() {
   if (block()) return;
 
-  hantaV3Level += 0.3;
-  const count = Math.floor(50 * hantaV3Level);
+  v2Level += 0.5;
+  const count = Math.floor(200 * v2Level);
 
   for (let i = 0; i < count; i++) {
-    const geo = new THREE.IcosahedronGeometry(4, 3);
-    const mat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(Math.random(), Math.random(), Math.random())
-    });
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(makeSpikyGeo(), makeFlashMat());
     mesh.position.set(
-      (Math.random() - 0.5) * (400 + hantaV3Level * 30),
-      (Math.random() - 0.5) * (400 + hantaV3Level * 30),
-      (Math.random() - 0.5) * (400 + hantaV3Level * 30)
+      (Math.random() - 0.5) * (400 + v2Level * 40),
+      (Math.random() - 0.5) * (400 + v2Level * 40),
+      (Math.random() - 0.5) * (400 + v2Level * 40)
     );
     spikyGroup.add(mesh);
   }
 
-  requestAnimationFrame(spawnHantaV3);
+  setTimeout(spawnV2, 200);
+}
+
+function spawnV3() {
+  if (block()) return;
+
+  v3Level += 0.3;
+  const count = Math.floor(40 * v3Level);
+
+  for (let i = 0; i < count; i++) {
+    const mesh = new THREE.Mesh(makeSpikyGeo(), makeFlashMat());
+    mesh.position.set(
+      (Math.random() - 0.5) * (500 + v3Level * 50),
+      (Math.random() - 0.5) * (500 + v3Level * 50),
+      (Math.random() - 0.5) * (500 + v3Level * 50)
+    );
+    spikyGroup.add(mesh);
+  }
+
+  requestAnimationFrame(spawnV3);
 }
 
 /* ---------------------------------------------------
-   CAMERA + CONTROLS
+   CAMERA CONTROLS (TOUCH FIXED)
 --------------------------------------------------- */
-let dragging = false;
-let prevX = 0, prevY = 0;
-let yaw = 0, pitch = 0;
-
 function initControls() {
   renderer.domElement.addEventListener("pointerdown", e => {
     dragging = true;
@@ -337,18 +283,38 @@ function initControls() {
     prevY = e.clientY;
   });
 
-  window.addEventListener("pointerup", () => dragging = false);
-
-  window.addEventListener("pointermove", e => {
+  renderer.domElement.addEventListener("pointermove", e => {
     if (!dragging) return;
     const dx = e.clientX - prevX;
     const dy = e.clientY - prevY;
     prevX = e.clientX;
     prevY = e.clientY;
-
     yaw -= dx * 0.003;
     pitch -= dy * 0.003;
   });
+
+  renderer.domElement.addEventListener("pointerup", () => dragging = false);
+
+  // TOUCH FIX
+  renderer.domElement.addEventListener("touchstart", e => {
+    dragging = true;
+    prevX = e.touches[0].clientX;
+    prevY = e.touches[0].clientY;
+  });
+
+  renderer.domElement.addEventListener("touchmove", e => {
+    if (!dragging) return;
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    const dx = x - prevX;
+    const dy = y - prevY;
+    prevX = x;
+    prevY = y;
+    yaw -= dx * 0.003;
+    pitch -= dy * 0.003;
+  });
+
+  renderer.domElement.addEventListener("touchend", () => dragging = false);
 }
 
 function initZoomControls() {
