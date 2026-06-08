@@ -23,6 +23,7 @@
     border-radius: 10px;
     backdrop-filter: blur(10px);
     font-size: 14px;
+    display: none;
   }
 
   #ui button, #ui input[type=range] {
@@ -77,7 +78,7 @@
 
 <div id="uiToggle">☰</div>
 
-<div id="ui" style="display:none;">
+<div id="ui">
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <b>3D Spiky Ball Stress Tester</b>
     <button id="hideUiBtn" style="width:auto;padding:2px 6px;font-size:11px;">Hide</button>
@@ -101,14 +102,40 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
 <script>
-/* -------------------------
-   GLOBALS
---------------------------*/
 let appStarted = false;
 
+// ⭐ Load THREE.js dynamically AFTER tap
+function loadThreeJS(callback) {
+  const script = document.createElement("script");
+  script.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+  script.onload = callback;
+  document.body.appendChild(script);
+}
+
+// ⭐ TAP TO START
+document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
+document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
+document.body.addEventListener("click", startApp, { once: true });
+
+function startApp() {
+  if (appStarted) return;
+  appStarted = true;
+
+  document.getElementById("tapToStart").style.display = "none";
+
+  // NOW load THREE.js
+  loadThreeJS(() => {
+    // AFTER THREE.js loads → start engine
+    init();
+    animate();
+    getSpecs();
+  });
+}
+
+/* -------------------------
+   GLOBALS (after THREE loads)
+--------------------------*/
 let scene, camera, renderer;
 let spikyGroup;
 let lastTime = performance.now();
@@ -123,29 +150,12 @@ let hantaV2Level = 1;
 let hantaV3Level = 1;
 
 /* -------------------------
-   TAP TO START
---------------------------*/
-document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
-document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
-document.body.addEventListener("click", startApp, { once: true });
-
-function startApp() {
-  if (appStarted) return;
-  appStarted = true;
-
-  document.getElementById("tapToStart").style.display = "none";
-  document.getElementById("ui").style.display = "block";
-  document.getElementById("uiToggle").style.display = "flex";
-
-  init();
-  animate();
-  getSpecs();
-}
-
-/* -------------------------
    INIT
 --------------------------*/
 function init() {
+  document.getElementById("ui").style.display = "block";
+  document.getElementById("uiToggle").style.display = "flex";
+
   fpsEl = document.getElementById('fps');
 
   scene = new THREE.Scene();
@@ -334,8 +344,6 @@ function spawnInfinite() {
    HANTAV2 (Progressive Instancing)
 --------------------------*/
 function spawnHantaV2() {
-  if (!appStarted) return;
-
   hantaV2Level += 0.5;
   const count = Math.floor(2000 * hantaV2Level);
 
@@ -380,8 +388,6 @@ function spawnHantaV2() {
    HANTAV3 (Progressive Heavy Mesh Spam)
 --------------------------*/
 function spawnHantaV3() {
-  if (!appStarted) return;
-
   hantaV3Level += 0.3;
   const BALLS_PER_FRAME = Math.floor(50 * hantaV3Level);
   const sizeBoost = hantaV3Level * 0.2;
@@ -493,14 +499,4 @@ function animate() {
   fpsEl.textContent = "FPS: " + fps;
 
   spikyGroup.rotation.y += 0.002;
-  spikyGroup.rotation.x += 0.001;
-
-  updateCamera();
-  renderer.render(scene, camera);
-}
-
-/* -------------------------
-   DEVICE SPECS
---------------------------*/
-function getSpecs() {
-  const gl =
+  spikyGroup.rotation.x += 0
