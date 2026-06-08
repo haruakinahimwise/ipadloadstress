@@ -104,11 +104,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-/* -------------------------
-   GLOBAL FIX: Prevent chaos
-   from running before start
---------------------------*/
 let appStarted = false;
+
+function blockIfNotStarted() {
+  if (!appStarted) return true;
+  return false;
+}
 
 let scene, camera, renderer;
 let spikyGroup;
@@ -120,13 +121,8 @@ let zoomIn = false;
 let zoomOut = false;
 let zoomSpeed = 2;
 
-/* -------------------------
-   TAP TO START LISTENERS
---------------------------*/
-document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
 document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
-
-// Safari backup
+document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
 document.body.addEventListener("click", startApp, { once: true });
 
 function startApp() {
@@ -143,6 +139,8 @@ function startApp() {
 }
 
 function init() {
+  if (blockIfNotStarted()) return;
+
   fpsEl = document.getElementById('fps');
 
   scene = new THREE.Scene();
@@ -178,24 +176,25 @@ function init() {
   window.addEventListener('resize', onWindowResize);
 
   document.getElementById('spawnBtn').addEventListener('click', () => {
+    if (blockIfNotStarted()) return;
     const count = parseInt(document.getElementById('ballCount').value, 10);
     document.getElementById('ballCountLabel').innerText = count;
     spawnSpikyBalls(count);
   });
 
   document.getElementById('spawnInfiniteBtn').addEventListener('click', () => {
-    if (!appStarted) return;
+    if (blockIfNotStarted()) return;
     infiniteSpawn = !infiniteSpawn;
     if (infiniteSpawn) spawnInfinite();
   });
 
   document.getElementById("spawnHantaV2Btn").addEventListener("click", () => {
-    if (!appStarted) return;
+    if (blockIfNotStarted()) return;
     spawnHantaV2();
   });
 
   document.getElementById("spawnHantaV3Btn").addEventListener("click", () => {
-    if (!appStarted) return;
+    if (blockIfNotStarted()) return;
     infiniteSpawn = false;
     spawnHantaV3();
   });
@@ -222,6 +221,8 @@ function initRetractableUI() {
 }
 
 function spawnSpikyBalls(count) {
+  if (blockIfNotStarted()) return;
+
   while (spikyGroup.children.length > 0) {
     spikyGroup.remove(spikyGroup.children[0]);
   }
@@ -265,7 +266,7 @@ function spawnSpikyBalls(count) {
 }
 
 function spawnInfinite() {
-  if (!appStarted) return;
+  if (blockIfNotStarted()) return;
   if (!infiniteSpawn) return;
 
   const now = performance.now();
@@ -322,7 +323,7 @@ function spawnInfinite() {
 }
 
 function spawnHantaV2() {
-  if (!appStarted) return;
+  if (blockIfNotStarted()) return;
 
   const geo = new THREE.IcosahedronGeometry(4, 3);
   const mat = new THREE.MeshStandardMaterial({
@@ -375,7 +376,7 @@ function spawnHantaV2() {
 }
 
 function spawnHantaV3() {
-  if (!appStarted) return;
+  if (blockIfNotStarted()) return;
 
   const now = performance.now();
   const dt = now - lastTime || 16;
@@ -471,6 +472,8 @@ function initZoomControls() {
 }
 
 function updateCamera() {
+  if (blockIfNotStarted()) return;
+
   const forward = new THREE.Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
@@ -485,6 +488,8 @@ function updateCamera() {
 }
 
 function animate() {
+  if (blockIfNotStarted()) return;
+
   requestAnimationFrame(animate);
 
   const now = performance.now();
@@ -500,5 +505,34 @@ function animate() {
 }
 
 function getSpecs() {
+  if (blockIfNotStarted()) return;
+
   const gl = document.createElement("canvas").getContext("webgl");
-  const debug =
+  if (!gl) return;
+  const debug = gl.getExtension("WEBGL_debug_renderer_info");
+
+  const specs = {
+    browser: navigator.userAgent,
+    cpuThreads: navigator.hardwareConcurrency || "Unknown",
+    deviceMemory: navigator.deviceMemory ? navigator.deviceMemory + " GB" : "Unknown",
+    screen: `${window.screen.width} x ${window.screen.height}`,
+    gpu: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "Unknown GPU",
+    vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : "Unknown Vendor",
+    maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE)
+  };
+
+  let html = "";
+  for (const k in specs) html += `<b>${k}:</b> ${specs[k]}<br>`;
+  document.getElementById("specs").innerHTML = html;
+}
+
+function onWindowResize() {
+  if (!camera || !renderer) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+
+</body>
+</html>
