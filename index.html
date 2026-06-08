@@ -13,7 +13,6 @@
     font-family: system-ui, sans-serif;
   }
 
-  /* UI PANEL */
   #ui {
     position: fixed;
     top: 10px;
@@ -36,7 +35,6 @@
     margin-top: 4px;
   }
 
-  /* RETRACT BUTTON */
   #uiToggle {
     position: fixed;
     top: 10px;
@@ -76,10 +74,8 @@
 
 <div id="tapToStart">Tap to Start</div>
 
-<!-- RETRACT BUTTON -->
 <div id="uiToggle">☰</div>
 
-<!-- UI PANEL -->
 <div id="ui" style="display:none;">
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <b>3D Spiky Ball Stress Tester</b>
@@ -95,6 +91,8 @@
   <button id="spawnBtn">Apply ball count</button>
 
   <button id="spawnInfiniteBtn">Spawn Infinite Balls (HANTAVIRUS)</button>
+  <button id="spawnHantaV2Btn" style="background:#ff2222;">Spawn HANTAV2 (DO NOT PRESS)</button>
+  <button id="spawnHantaV3Btn" style="background:#aa00ff;">Spawn HANTAV3 (HEAVY LAG)</button>
 
   <div style="margin-top:10px; text-align:left;">
     <b>Device Specs</b>
@@ -111,7 +109,6 @@ let lastTime = performance.now();
 let fpsEl;
 let infiniteSpawn = false;
 
-// ZOOM VARIABLES
 let zoomIn = false;
 let zoomOut = false;
 let zoomSpeed = 2;
@@ -134,12 +131,7 @@ function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
 
-  camera = new THREE.PerspectiveCamera(
-    60,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    4000
-  );
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4000);
   camera.position.set(0, 0, 120);
 
   renderer = new THREE.WebGLRenderer({
@@ -177,6 +169,15 @@ function init() {
   document.getElementById('spawnInfiniteBtn').addEventListener('click', () => {
     infiniteSpawn = !infiniteSpawn;
     if (infiniteSpawn) spawnInfinite();
+  });
+
+  document.getElementById("spawnHantaV2Btn").addEventListener("click", () => {
+    spawnHantaV2();
+  });
+
+  document.getElementById("spawnHantaV3Btn").addEventListener("click", () => {
+    infiniteSpawn = false;
+    spawnHantaV3();
   });
 
   initControls();
@@ -299,6 +300,113 @@ function spawnInfinite() {
   requestAnimationFrame(spawnInfinite);
 }
 
+function spawnHantaV2() {
+  const geo = new THREE.IcosahedronGeometry(4, 3);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 1,
+    roughness: 0,
+    emissive: 0xffffff,
+    emissiveIntensity: 5
+  });
+
+  const count = 50000;
+  const instanced = new THREE.InstancedMesh(geo, mat, count);
+
+  const dummy = new THREE.Object3D();
+
+  for (let i = 0; i < count; i++) {
+    dummy.position.set(
+      (Math.random() - 0.5) * 2000,
+      (Math.random() - 0.5) * 2000,
+      (Math.random() - 0.5) * 2000
+    );
+
+    dummy.rotation.set(
+      Math.random() * Math.PI,
+      Math.random() * Math.PI,
+      Math.random() * Math.PI
+    );
+
+    const s = Math.random() * 20 + 2;
+    dummy.scale.set(s, s, s);
+
+    dummy.updateMatrix();
+    instanced.setMatrixAt(i, dummy.matrix);
+  }
+
+  spikyGroup.add(instanced);
+
+  camera.fov = 60 + Math.random() * 40;
+  camera.updateProjectionMatrix();
+
+  camera.position.x += (Math.random() - 0.5) * 5;
+  camera.position.y += (Math.random() - 0.5) * 5;
+
+  document.body.style.background = "#ff00ff";
+  setTimeout(() => {
+    document.body.style.background = "#000";
+  }, 80);
+
+  setTimeout(spawnHantaV2, 200);
+}
+
+function spawnHantaV3() {
+  const now = performance.now();
+  const dt = now - lastTime || 16;
+  const fps = Math.max(1, Math.min(60, Math.round(1000 / dt)));
+
+  const BALLS_PER_FRAME = Math.floor(800 + (60 - fps) * 40);
+
+  for (let i = 0; i < BALLS_PER_FRAME; i++) {
+    const geo = new THREE.IcosahedronGeometry(4, 4);
+    const pos = geo.attributes.position;
+
+    for (let j = 0; j < pos.count; j++) {
+      const x = pos.getX(j);
+      const y = pos.getY(j);
+      const z = pos.getZ(j);
+      const len = Math.sqrt(x*x + y*y + z*z) || 1;
+      const spike = 1 + Math.random() * 3.5;
+      pos.setXYZ(j, (x/len)*len*spike, (y/len)*len*spike, (z/len)*len*spike);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+      metalness: 1.0,
+      roughness: 0.1,
+      emissive: new THREE.Color(Math.random(), Math.random(), Math.random()),
+      emissiveIntensity: 3 + Math.random() * 3
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+
+    mesh.position.set(
+      (Math.random() - 0.5) * 800,
+      (Math.random() - 0.5) * 800,
+      (Math.random() - 0.5) * 800
+    );
+
+    mesh.rotation.set(
+      Math.random() * Math.PI,
+      Math.random() * Math.PI,
+      Math.random() * Math.PI
+    );
+
+    const s = 0.5 + Math.random() * 10;
+    mesh.scale.set(s, s, s);
+
+    spikyGroup.add(mesh);
+  }
+
+  camera.position.x += (Math.random() - 0.5) * 1.2;
+  camera.position.y += (Math.random() - 0.5) * 1.2;
+
+  requestAnimationFrame(spawnHantaV3);
+}
+
 let dragging = false;
 let prevX = 0, prevY = 0;
 let yaw = 0, pitch = 0;
@@ -367,30 +475,4 @@ function animate() {
 }
 
 function getSpecs() {
-  const gl = document.createElement("canvas").getContext("webgl");
-  const debug = gl.getExtension("WEBGL_debug_renderer_info");
-
-  const specs = {
-    browser: navigator.userAgent,
-    cpuThreads: navigator.hardwareConcurrency || "Unknown",
-    deviceMemory: navigator.deviceMemory ? navigator.deviceMemory + " GB" : "Unknown",
-    screen: `${window.screen.width} x ${window.screen.height}`,
-    gpu: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "Unknown GPU",
-    vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : "Unknown Vendor",
-    maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE)
-  };
-
-  let html = "";
-  for (const k in specs) html += `<b>${k}:</b> ${specs[k]}<br>`;
-  document.getElementById("specs").innerHTML = html;
-}
-
-function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-}
-</script>
-
-</body>
-</html>
+  const gl = document.createElement("canvas").get
