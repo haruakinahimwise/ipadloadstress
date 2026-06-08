@@ -13,6 +13,15 @@
     font-family: system-ui, sans-serif;
   }
 
+  /* ⭐ CANVAS FIX — prevent blocking taps */
+  canvas {
+    pointer-events: none !important;
+    z-index: 1 !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+
   #ui {
     position: fixed;
     top: 10px;
@@ -55,6 +64,7 @@
     user-select: none;
   }
 
+  /* ⭐ TAP SCREEN ALWAYS ON TOP */
   #tapToStart {
     position: fixed;
     top: 0;
@@ -67,8 +77,8 @@
     align-items: center;
     justify-content: center;
     font-size: 28px;
-    z-index: 999999;
-    pointer-events: auto;
+    z-index: 999999 !important;
+    pointer-events: auto !important;
   }
 </style>
 </head>
@@ -105,7 +115,7 @@
 <script>
 let appStarted = false;
 
-// ⭐ Load THREE.js dynamically AFTER tap
+/* ⭐ Load THREE.js AFTER tap */
 function loadThreeJS(callback) {
   const script = document.createElement("script");
   script.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
@@ -113,7 +123,7 @@ function loadThreeJS(callback) {
   document.body.appendChild(script);
 }
 
-// ⭐ TAP TO START
+/* ⭐ TAP TO START */
 document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
 document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
 document.body.addEventListener("click", startApp, { once: true });
@@ -124,9 +134,7 @@ function startApp() {
 
   document.getElementById("tapToStart").style.display = "none";
 
-  // NOW load THREE.js
   loadThreeJS(() => {
-    // AFTER THREE.js loads → start engine
     init();
     animate();
     getSpecs();
@@ -134,7 +142,7 @@ function startApp() {
 }
 
 /* -------------------------
-   GLOBALS (after THREE loads)
+   GLOBALS
 --------------------------*/
 let scene, camera, renderer;
 let spikyGroup;
@@ -169,9 +177,15 @@ function init() {
     powerPreference: "high-performance",
     preserveDrawingBuffer: false
   });
+
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
   document.body.appendChild(renderer.domElement);
+
+  /* ⭐ ENABLE CANVAS TOUCHES ONLY AFTER START */
+  renderer.domElement.style.pointerEvents = "auto";
+  renderer.domElement.style.zIndex = "1";
 
   scene.add(new THREE.AmbientLight(0x555555));
 
@@ -484,19 +498,4 @@ function updateCamera() {
   if (zoomOut) camera.position.addScaledVector(forward, -zoomSpeed);
 
   const target = new THREE.Vector3().addVectors(camera.position, forward);
-  camera.lookAt(target);
-}
-
-/* -------------------------
-   ANIMATE LOOP
---------------------------*/
-function animate() {
-  requestAnimationFrame(animate);
-
-  const now = performance.now();
-  const fps = Math.round(1000 / (now - lastTime));
-  lastTime = now;
-  fpsEl.textContent = "FPS: " + fps;
-
-  spikyGroup.rotation.y += 0.002;
-  spikyGroup.rotation.x += 0
+  camera.lookAt(target
