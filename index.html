@@ -13,7 +13,6 @@
     font-family: system-ui, sans-serif;
   }
 
-  /* Canvas disabled BEFORE start */
   canvas {
     pointer-events: none;
     position: fixed;
@@ -61,6 +60,12 @@
     justify-content: center;
     font-size: 20px;
   }
+
+  #ui button {
+    margin: 2px 0;
+    display: block;
+    width: 180px;
+  }
 </style>
 </head>
 <body>
@@ -77,21 +82,17 @@
   <button id="spawnV1">HANTAV1</button>
   <button id="spawnV2" style="background:#ff2222;">HANTAV2 Progressive</button>
   <button id="spawnV3" style="background:#aa00ff;">HANTAV3 Progressive</button>
+  <button id="spawnV4" style="background:#ffaa00;">HANTAV4 GPU Storm</button>
+  <button id="spawnV5" style="background:#00ffaa;">HANTAV5 Spike Planet</button>
+  <button id="spawnV6" style="background:#00aaff;">HANTAV6 Particle Blast</button>
+  <button id="spawnV7" style="background:#2222ff;">HANTAV7 Black Hole</button>
+  <button id="spawnV8" style="background:#ff00aa;">HANTAV8 Screen Shake</button>
 </div>
 
 <script>
-/* ---------------------------------------------------
-   HARD‑LOCK SYSTEM
---------------------------------------------------- */
 let appStarted = false;
+function block() { return !appStarted; }
 
-function block() {
-  return !appStarted;
-}
-
-/* ---------------------------------------------------
-   TAP TO START
---------------------------------------------------- */
 document.getElementById("tapToStart").addEventListener("mousedown", startApp, { once: true });
 document.getElementById("tapToStart").addEventListener("touchstart", startApp, { once: true });
 document.body.addEventListener("click", startApp, { once: true });
@@ -102,7 +103,6 @@ function startApp() {
 
   document.getElementById("tapToStart").style.display = "none";
 
-  // Load THREE.js AFTER tap
   const script = document.createElement("script");
   script.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
   script.onload = () => {
@@ -112,9 +112,6 @@ function startApp() {
   document.body.appendChild(script);
 }
 
-/* ---------------------------------------------------
-   GLOBALS
---------------------------------------------------- */
 let scene, camera, renderer;
 let spikyGroup;
 let lastTime = performance.now();
@@ -126,14 +123,24 @@ let yaw = 0, pitch = 0;
 
 let zoomIn = false;
 let zoomOut = false;
-let zoomSpeed = 10;
+let zoomVelocity = 0;
+let zoomAccel = 2.0;
+let zoomMax = 80;
 
 let v2Level = 1;
 let v3Level = 1;
 
-/* ---------------------------------------------------
-   INIT
---------------------------------------------------- */
+let stopAll = false;
+
+let gpuStormActive = false;
+let shakeActive = false;
+let baseCamPos = null;
+
+let blackHoleActive = false;
+
+let spikePlanet = null;
+let particleSystem = null;
+
 function init() {
   if (block()) return;
 
@@ -145,12 +152,11 @@ function init() {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 4000);
   camera.position.set(0, 0, 140);
+  baseCamPos = camera.position.clone();
 
   renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(innerWidth, innerHeight);
   document.body.appendChild(renderer.domElement);
-
-  // Canvas now accepts touches
   renderer.domElement.style.pointerEvents = "auto";
 
   scene.add(new THREE.AmbientLight(0x555555));
@@ -168,17 +174,20 @@ function init() {
 
   initControls();
   initZoomControls();
+  initGlobalKeys();
 
-  document.getElementById("spawnV1").onclick = () => spawnV1();
-  document.getElementById("spawnV2").onclick = () => { v2Level = 1; spawnV2(); };
-  document.getElementById("spawnV3").onclick = () => { v3Level = 1; spawnV3(); };
+  document.getElementById("spawnV1").onclick = () => { stopAll = false; spawnV1(); };
+  document.getElementById("spawnV2").onclick = () => { stopAll = false; v2Level = 1; spawnV2(); };
+  document.getElementById("spawnV3").onclick = () => { stopAll = false; v3Level = 1; spawnV3(); };
+  document.getElementById("spawnV4").onclick = () => { gpuStormActive = true; shakeActive = true; spawnV4(); };
+  document.getElementById("spawnV5").onclick = () => { spawnV5(); };
+  document.getElementById("spawnV6").onclick = () => { spawnV6(); };
+  document.getElementById("spawnV7").onclick = () => { blackHoleActive = true; };
+  document.getElementById("spawnV8").onclick = () => { shakeActive = true; };
 
   window.addEventListener("resize", onResize);
 }
 
-/* ---------------------------------------------------
-   SPIKY SHAPE GENERATOR
---------------------------------------------------- */
 function makeSpikyGeo() {
   const geo = new THREE.IcosahedronGeometry(4, 3);
   const pos = geo.attributes.position;
@@ -195,21 +204,18 @@ function makeSpikyGeo() {
   return geo;
 }
 
-function makeFlashMat() {
+function makeFlashMat(intensityBoost = 0) {
   return new THREE.MeshStandardMaterial({
     color: new THREE.Color(Math.random(), Math.random(), Math.random()),
     metalness: 1.0,
     roughness: 0.1,
     emissive: new THREE.Color(Math.random(), Math.random(), Math.random()),
-    emissiveIntensity: 3 + Math.random() * 4
+    emissiveIntensity: 3 + Math.random() * 4 + intensityBoost
   });
 }
 
-/* ---------------------------------------------------
-   CHAOS MODES
---------------------------------------------------- */
 function spawnV1() {
-  if (block()) return;
+  if (block() || stopAll) return;
 
   const geo = makeSpikyGeo();
   const mat = makeFlashMat();
@@ -236,7 +242,7 @@ function spawnV1() {
 }
 
 function spawnV2() {
-  if (block()) return;
+  if (block() || stopAll) return;
 
   v2Level += 0.5;
   const count = Math.floor(200 * v2Level);
@@ -251,11 +257,11 @@ function spawnV2() {
     spikyGroup.add(mesh);
   }
 
-  setTimeout(spawnV2, 200);
+  setTimeout(() => { if (!stopAll) spawnV2(); }, 200);
 }
 
 function spawnV3() {
-  if (block()) return;
+  if (block() || stopAll) return;
 
   v3Level += 0.3;
   const count = Math.floor(40 * v3Level);
@@ -270,12 +276,144 @@ function spawnV3() {
     spikyGroup.add(mesh);
   }
 
-  requestAnimationFrame(spawnV3);
+  requestAnimationFrame(() => { if (!stopAll) spawnV3(); });
 }
 
-/* ---------------------------------------------------
-   CAMERA CONTROLS (TOUCH FIXED)
---------------------------------------------------- */
+function spawnV4() {
+  if (block() || stopAll) return;
+
+  const count = 300;
+  for (let i = 0; i < count; i++) {
+    const mesh = new THREE.Mesh(makeSpikyGeo(), makeFlashMat(6));
+    mesh.position.set(
+      (Math.random() - 0.5) * 800,
+      (Math.random() - 0.5) * 800,
+      (Math.random() - 0.5) * 800
+    );
+    mesh.rotation.set(
+      Math.random() * Math.PI,
+      Math.random() * Math.PI,
+      Math.random() * Math.PI
+    );
+    const s = 2 + Math.random() * 10;
+    mesh.scale.set(s, s, s);
+    spikyGroup.add(mesh);
+  }
+}
+
+function spawnV5() {
+  if (block()) return;
+
+  if (spikePlanet) {
+    scene.remove(spikePlanet);
+    spikePlanet = null;
+  }
+
+  spikePlanet = new THREE.Group();
+  const baseRadius = 40;
+
+  for (let i = 0; i < 2000; i++) {
+    const mesh = new THREE.Mesh(makeSpikyGeo(), makeFlashMat(4));
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = baseRadius + Math.random() * 10;
+
+    const x = r * Math.sin(phi) * Math.cos(theta);
+    const y = r * Math.sin(phi) * Math.sin(theta);
+    const z = r * Math.cos(phi);
+
+    mesh.position.set(x, y, z);
+    spikePlanet.add(mesh);
+  }
+
+  spikePlanet.position.set(0, 0, 0);
+  scene.add(spikePlanet);
+}
+
+function spawnV6() {
+  if (block()) return;
+
+  if (particleSystem) {
+    scene.remove(particleSystem);
+    particleSystem = null;
+  }
+
+  const count = 50000;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    positions[i3] = (Math.random() - 0.5) * 800;
+    positions[i3 + 1] = (Math.random() - 0.5) * 800;
+    positions[i3 + 2] = (Math.random() - 0.5) * 800;
+
+    colors[i3] = Math.random();
+    colors[i3 + 1] = Math.random();
+    colors[i3 + 2] = Math.random();
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 2,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.9
+  });
+
+  particleSystem = new THREE.Points(geo, mat);
+  scene.add(particleSystem);
+}
+
+function applyBlackHole() {
+  if (!blackHoleActive) return;
+  const center = new THREE.Vector3(0, 0, 0);
+  const pull = 0.02;
+
+  spikyGroup.children.forEach(m => {
+    const dir = center.clone().sub(m.position);
+    m.position.addScaledVector(dir, pull);
+  });
+
+  if (spikePlanet) {
+    spikePlanet.children.forEach(m => {
+      const dir = center.clone().sub(m.position);
+      m.position.addScaledVector(dir, pull * 0.5);
+    });
+  }
+
+  if (particleSystem) {
+    const pos = particleSystem.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const dir = center.clone().sub(new THREE.Vector3(x, y, z));
+      const nx = x + dir.x * pull;
+      const ny = y + dir.y * pull;
+      const nz = z + dir.z * pull;
+      pos.setXYZ(i, nx, ny, nz);
+    }
+    pos.needsUpdate = true;
+  }
+}
+
+function applyShake() {
+  if (!shakeActive) {
+    camera.position.copy(baseCamPos);
+    return;
+  }
+  const intensity = 3;
+  camera.position.set(
+    baseCamPos.x + (Math.random() - 0.5) * intensity,
+    baseCamPos.y + (Math.random() - 0.5) * intensity,
+    baseCamPos.z + (Math.random() - 0.5) * intensity
+  );
+}
+
 function initControls() {
   renderer.domElement.addEventListener("pointerdown", e => {
     dragging = true;
@@ -295,7 +433,6 @@ function initControls() {
 
   renderer.domElement.addEventListener("pointerup", () => dragging = false);
 
-  // TOUCH FIX
   renderer.domElement.addEventListener("touchstart", e => {
     dragging = true;
     prevX = e.touches[0].clientX;
@@ -328,6 +465,39 @@ function initZoomControls() {
   });
 }
 
+function initGlobalKeys() {
+  window.addEventListener("keydown", e => {
+    if (e.code === "KeyU") {
+      stopAll = true;
+    }
+    if (e.code === "Space") {
+      stopAll = false;
+      gpuStormActive = false;
+      shakeActive = false;
+      blackHoleActive = false;
+      clearAllSpikes();
+    }
+  });
+}
+
+function clearAllSpikes() {
+  if (block()) return;
+
+  while (spikyGroup.children.length > 0) {
+    spikyGroup.remove(spikyGroup.children[0]);
+  }
+
+  if (spikePlanet) {
+    scene.remove(spikePlanet);
+    spikePlanet = null;
+  }
+
+  if (particleSystem) {
+    scene.remove(particleSystem);
+    particleSystem = null;
+  }
+}
+
 function updateCamera() {
   const forward = new THREE.Vector3(
     Math.sin(yaw),
@@ -335,15 +505,21 @@ function updateCamera() {
     Math.cos(yaw)
   );
 
-  if (zoomIn) camera.position.addScaledVector(forward, zoomSpeed);
-  if (zoomOut) camera.position.addScaledVector(forward, -zoomSpeed);
+  if (zoomIn) {
+    zoomVelocity = Math.min(zoomVelocity + zoomAccel, zoomMax);
+  } else if (zoomOut) {
+    zoomVelocity = Math.max(zoomVelocity - zoomAccel, -zoomMax);
+  } else {
+    zoomVelocity *= 0.85;
+  }
 
-  camera.lookAt(forward.add(camera.position));
+  camera.position.addScaledVector(forward, zoomVelocity);
+  baseCamPos.copy(camera.position);
+
+  const lookTarget = forward.clone().add(camera.position);
+  camera.lookAt(lookTarget);
 }
 
-/* ---------------------------------------------------
-   ANIMATE
---------------------------------------------------- */
 function animate() {
   if (block()) return;
 
@@ -357,13 +533,26 @@ function animate() {
   spikyGroup.rotation.y += 0.002;
   spikyGroup.rotation.x += 0.001;
 
+  if (spikePlanet) {
+    spikePlanet.rotation.y += 0.003;
+    spikePlanet.rotation.x += 0.001;
+  }
+
+  if (gpuStormActive) {
+    spikyGroup.children.forEach(m => {
+      if (m.material && m.material.emissiveIntensity !== undefined) {
+        m.material.emissiveIntensity = 6 + Math.sin(now * 0.01) * 4;
+      }
+    });
+  }
+
+  applyBlackHole();
   updateCamera();
+  applyShake();
+
   renderer.render(scene, camera);
 }
 
-/* ---------------------------------------------------
-   RESIZE
---------------------------------------------------- */
 function onResize() {
   if (!camera || !renderer) return;
   camera.aspect = innerWidth / innerHeight;
